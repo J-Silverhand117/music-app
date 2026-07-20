@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePlayer } from '../state/PlayerContext';
 import { useLibrary } from '../state/LibraryContext';
 import { getPref, setPref } from '../lib/db';
@@ -7,18 +7,93 @@ import Vinyl from './Vinyl';
 import Visualizer from './Visualizer';
 import { fmtTime } from '../lib/format';
 import {
-  Play, Pause, Prev, Next, Shuffle, Repeat, ChevronDown, ChevronUp,
-  Volume, QueueIcon, X
+  Play, Pause, Prev, Next, Shuffle, Repeat, ChevronDown,
+  Volume, QueueIcon, X, Grip
 } from './Icons';
 
-// Queue rows with reorder (up/down) and remove controls. Used by both the
-// desktop side panel and the mobile bottom sheet.
+// Queue rows with hold-and-drag reordering (grip handle) and remove.
+// Used by both the desktop side panel and the mobile bottom sheet.
 function QueueList() {
   const p = usePlayer();
+  const listRef = useRef(null);
+  const dragRef = useRef(null);
+  const justDraggedRef = useRef(false);
+
+  const rows = () => [...listRef.current.querySelectorAll('.qrow')];
+
+  const applyShifts = d => {
+    rows().forEach((r, j) => {
+      if (j === d.from) return;
+      let shift = 0;
+      if (d.from < d.to && j > d.from && j <= d.to) shift = -d.rowH;
+      else if (d.from > d.to && j >= d.to && j < d.from) shift = d.rowH;
+      r.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
+  };
+
+  const onGripDown = (e, i) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const list = listRef.current;
+    const rowEls = rows();
+    if (!rowEls[i]) return;
+    dragRef.current = {
+      from: i,
+      to: i,
+      rowH: rowEls[i].offsetHeight || 48,
+      startY: e.clientY,
+      scrollStart: list.scrollTop,
+      moved: false
+    };
+    rowEls[i].classList.add('dragging');
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
+  };
+
+  const onGripMove = e => {
+    const d = dragRef.current;
+    if (!d) return;
+    const list = listRef.current;
+    // auto-scroll when dragging near the top/bottom of the list
+    const rect = list.getBoundingClientRect();
+    if (e.clientY < rect.top + 46) list.scrollTop -= 9;
+    else if (e.clientY > rect.bottom - 46) list.scrollTop += 9;
+    const dy = e.clientY - d.startY + (list.scrollTop - d.scrollStart);
+    if (Math.abs(dy) > 4) d.moved = true;
+    const rowEls = rows();
+    if (rowEls[d.from]) rowEls[d.from].style.transform = `translateY(${dy}px)`;
+    const to = Math.max(0, Math.min(rowEls.length - 1, d.from + Math.round(dy / d.rowH)));
+    if (to !== d.to) {
+      d.to = to;
+      applyShifts(d);
+    }
+  };
+
+  const onGripUp = () => {
+    const d = dragRef.current;
+    if (!d) return;
+    dragRef.current = null;
+    const list = listRef.current;
+    list.classList.add('no-anim');
+    rows().forEach(r => {
+      r.style.transform = '';
+      r.classList.remove('dragging');
+    });
+    requestAnimationFrame(() => list?.classList.remove('no-anim'));
+    if (d.moved) {
+      justDraggedRef.current = true;
+      setTimeout(() => { justDraggedRef.current = false; }, 150);
+      if (d.to !== d.from) p.moveInQueue(d.from, d.to);
+    }
+  };
+
   return (
-    <div className="np-queue-list">
+    <div className="np-queue-list" ref={listRef}>
       {p.queueTracks.map((qt, i) => (
-        <div key={i} className={'qrow' + (i === p.index ? ' on' : '')} onClick={() => p.jumpTo(i)}>
+        <div
+          key={i}
+          className={'qrow' + (i === p.index ? ' on' : '')}
+          onClick={() => { if (!justDraggedRef.current) p.jumpTo(i); }}
+        >
           <span className="ndot qnum">{String(i + 1).padStart(2, '0')}</span>
           <div className="qmeta">
             <div className="qtitle">{qt.title}</div>
@@ -26,20 +101,14 @@ function QueueList() {
           </div>
           <div className="qbtns" onClick={e => e.stopPropagation()}>
             <button
-              className="qbtn"
-              aria-label="Move up"
-              disabled={i === 0}
-              onClick={() => p.moveInQueue(i, i - 1)}
+              className="qbtn qgrip"
+              aria-label="Hold and drag to reorder"
+              onPointerDown={e => onGripDown(e, i)}
+              onPointerMove={onGripMove}
+              onPointerUp={onGripUp}
+              onPointerCancel={onGripUp}
             >
-              <ChevronUp />
-            </button>
-            <button
-              className="qbtn"
-              aria-label="Move down"
-              disabled={i === p.queueTracks.length - 1}
-              onClick={() => p.moveInQueue(i, i + 1)}
-            >
-              <ChevronDown />
+              <Grip />
             </button>
             <button className="qbtn qx" aria-label="Remove from queue" onClick={() => p.removeFromQueue(i)}>
               <X />

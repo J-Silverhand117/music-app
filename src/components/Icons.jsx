@@ -33,3 +33,10 @@ export const Import = () => <Svg {...S}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 
 export const Volume = () => <Svg {...S}><path d="M11 5 6 9H2v6h4l5 4V5z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/></Svg>;
 export const QueueIcon = () => <Svg {...S}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/><circle cx="18" cy="17.5" r="2.4"/><path d="M20.4 17.5V11"/></Svg>;
 export const Note = () => <Svg {...S}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></Svg>;
+export const Grip = () => (
+  <Svg>
+    {[7, 12, 17].map(y => [9.5, 14.5].map(x => (
+      <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" fill="currentColor" />
+    )))}
+  </Svg>
+);

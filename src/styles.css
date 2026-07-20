@@ -782,7 +782,7 @@ body::after {
 }
 .qbtns { display: flex; gap: 2px; flex-shrink: 0; }
 .qbtn {
-  width: 30px; height: 30px;
+  width: 32px; height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -792,10 +792,24 @@ body::after {
   color: var(--dim);
   cursor: pointer;
 }
-.qbtn svg { width: 15px; height: 15px; }
+.qbtn svg { width: 16px; height: 16px; }
 .qbtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); color: #fff; }
 .qbtn:disabled { opacity: 0.25; cursor: default; }
 .qbtn.qx:hover { color: #ff5952; }
+.qgrip { cursor: grab; touch-action: none; }
+.qgrip:active { cursor: grabbing; }
+
+/* drag-reorder states */
+.qrow { transition: transform 0.16s ease; }
+.qrow.dragging {
+  position: relative;
+  z-index: 6;
+  transition: none;
+  background: #151515;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.no-anim .qrow { transition: none !important; }
 
 /* ── vinyl ────────────────────────────────────────────────────────────── */
 .vinyl {
