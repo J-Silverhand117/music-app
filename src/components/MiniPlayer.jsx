@@ -1,7 +1,7 @@
 import { usePlayer } from '../state/PlayerContext';
 import { useLibrary } from '../state/LibraryContext';
 import Cover from './Cover';
-import { Play, Pause, Prev, Next } from './Icons';
+import { Play, Pause, Prev, Next, Shuffle, Repeat } from './Icons';
 
 export default function MiniPlayer({ onExpand }) {
   const p = usePlayer();
@@ -17,6 +17,13 @@ export default function MiniPlayer({ onExpand }) {
         <div className="mini-title">{t.title}</div>
         <div className="mini-artist">{t.artist}</div>
       </div>
+      <button
+        className={'iconbtn desktop-only' + (p.shuffle ? ' lit' : '')}
+        aria-label="Shuffle"
+        onClick={e => { e.stopPropagation(); p.toggleShuffle(); }}
+      >
+        <Shuffle />
+      </button>
       <button
         className="iconbtn desktop-only"
         aria-label="Previous"
@@ -37,6 +44,13 @@ export default function MiniPlayer({ onExpand }) {
         onClick={e => { e.stopPropagation(); p.next(); }}
       >
         <Next />
+      </button>
+      <button
+        className={'iconbtn desktop-only' + (p.repeat !== 'off' ? ' lit' : '')}
+        aria-label="Repeat"
+        onClick={e => { e.stopPropagation(); p.cycleRepeat(); }}
+      >
+        <Repeat one={p.repeat === 'one'} />
       </button>
     </div>
   );

@@ -554,13 +554,38 @@ body::after {
   z-index: 50;
   background: #000;
   display: flex;
-  flex-direction: column;
-  padding: calc(12px + env(safe-area-inset-top)) 22px calc(18px + env(safe-area-inset-bottom));
+  flex-direction: row;
   transform: translateY(103%);
   visibility: hidden;
   transition: transform 0.34s cubic-bezier(0.32, 0.72, 0.2, 1), visibility 0s 0.34s;
 }
 .np.open { transform: none; visibility: visible; transition: transform 0.34s cubic-bezier(0.32, 0.72, 0.2, 1); }
+.np-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(12px + env(safe-area-inset-top)) 22px calc(18px + env(safe-area-inset-bottom));
+}
+.np-side {
+  width: 330px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--line);
+  background: #050505;
+  display: flex;
+  flex-direction: column;
+  padding: calc(14px + env(safe-area-inset-top)) 14px calc(14px + env(safe-area-inset-bottom));
+}
+.np-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  color: var(--dim);
+  padding: 0 4px 8px;
+}
+.np-side .np-queue-list { flex: 1; overflow-y: auto; }
 .np-head { display: flex; align-items: center; justify-content: space-between; }
 .np-toggle {
   display: flex;
@@ -622,7 +647,13 @@ body::after {
 }
 .np-quality .reddot { font-size: 7px; vertical-align: 1px; }
 
-.np-seek { margin-top: 16px; }
+.np-seek { margin-top: 10px; }
+.np-viz {
+  width: 100%;
+  height: 30px;
+  display: block;
+  margin-bottom: 2px;
+}
 .np-times {
   display: flex;
   justify-content: space-between;
@@ -655,16 +686,56 @@ body::after {
 .np-play:active { transform: scale(0.95); }
 .np-play svg { width: 28px; height: 28px; }
 
+.np-bottom {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 460px;
+  margin: 6px auto 0;
+}
 .np-vol {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  max-width: 340px;
-  margin: 6px auto 0;
+  flex: 1;
+  min-width: 0;
   color: var(--dim);
 }
 .np-vol svg { flex-shrink: 0; width: 18px; height: 18px; }
+
+/* small spinning record next to the bottom controls (flat view) */
+.mini-vinyl {
+  position: relative;
+  width: 52px;
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle at 50% 50%, #050505 0 1.1px, #111 1.1px 2.4px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 6px 18px rgba(0, 0, 0, 0.5);
+  animation: spin 3.8s linear infinite;
+  animation-play-state: paused;
+}
+.mini-vinyl.spin { animation-play-state: running; }
+.mv-label {
+  position: absolute;
+  inset: 28%;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 0 1.5px #000;
+}
+.mv-label .cover-wrap { height: 100%; }
+.mv-spindle {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 4px; height: 4px;
+  margin: -2px;
+  border-radius: 50%;
+  background: #ccc;
+  z-index: 2;
+}
+.mv-balance { width: 52px; flex-shrink: 0; } /* keeps the volume slider centered */
+@media (max-width: 480px) { .mv-balance { display: none; } }
 
 .np-queue-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 55; }
 .np-queue {
@@ -686,23 +757,45 @@ body::after {
 .qrow {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 4px;
+  gap: 10px;
+  padding: 9px 4px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
 }
 .qrow:hover { background: rgba(255, 255, 255, 0.035); }
 .qrow.on .qtitle { color: var(--red); }
-.qnum { color: var(--dim); font-size: 11px; width: 26px; flex-shrink: 0; }
+.qnum { color: var(--dim); font-size: 11px; width: 24px; flex-shrink: 0; }
+.qmeta { flex: 1; min-width: 0; }
 .qtitle {
-  flex: 1;
-  min-width: 0;
   font-size: 13.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.qdur { color: var(--dim); font-size: 11px; flex-shrink: 0; }
+.qartist {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qbtns { display: flex; gap: 2px; flex-shrink: 0; }
+.qbtn {
+  width: 30px; height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--dim);
+  cursor: pointer;
+}
+.qbtn svg { width: 15px; height: 15px; }
+.qbtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.qbtn:disabled { opacity: 0.25; cursor: default; }
+.qbtn.qx:hover { color: #ff5952; }
 
 /* ── vinyl ────────────────────────────────────────────────────────────── */
 .vinyl {

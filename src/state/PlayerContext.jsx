@@ -199,6 +199,81 @@ export function PlayerProvider({ children }) {
 
   const jumpTo = useCallback(i => { jump(i); }, [jump]);
 
+  // move a queue entry (used by the up/down buttons in the queue panel)
+  const moveInQueue = useCallback((from, to) => {
+    const { queue: q, index: i } = refs.current;
+    if (from < 0 || from >= q.length || to < 0 || to >= q.length || from === to) return;
+    const copy = q.slice();
+    const [item] = copy.splice(from, 1);
+    copy.splice(to, 0, item);
+    let ni = i;
+    if (from === i) ni = to;
+    else if (from < i && to >= i) ni = i - 1;
+    else if (from > i && to <= i) ni = i + 1;
+    setQueue(copy);
+    setIndex(ni);
+    setPref('lastQueue', { ids: copy, index: ni });
+  }, []);
+
+  const removeFromQueue = useCallback(idx => {
+    const { queue: q, index: i, playing: pl } = refs.current;
+    if (idx < 0 || idx >= q.length) return;
+    const copy = q.slice();
+    copy.splice(idx, 1);
+    const a = audioRef.current;
+    if (!copy.length) {
+      a.pause();
+      a.removeAttribute('src');
+      setQueue([]); setIndex(-1); setPlaying(false); setPosition(0); setDuration(0);
+      setPref('lastQueue', { ids: [], index: -1 });
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+      return;
+    }
+    if (idx === i) {
+      // removed the playing track — advance to whatever is now in its slot
+      setQueue(copy);
+      refs.current.queue = copy;
+      jump(Math.min(idx, copy.length - 1), { autoplay: pl });
+    } else {
+      const ni = idx < i ? i - 1 : i;
+      setQueue(copy);
+      setIndex(ni);
+      setPref('lastQueue', { ids: copy, index: ni });
+    }
+  }, [jump]);
+
+  // Passive analyser tap for the visualizer. This adds NO processing to the
+  // audio (no gain, no EQ, no effects) — the signal passes through untouched,
+  // so system-level EQ and USB DAC output behave exactly as before.
+  const audioGraphRef = useRef(null);
+  const getAnalyser = useCallback(() => {
+    if (audioGraphRef.current) return audioGraphRef.current.analyser;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) {
+      audioGraphRef.current = { analyser: null };
+      return null;
+    }
+    let ctx;
+    try {
+      ctx = new AC();
+      const src = ctx.createMediaElementSource(audioRef.current);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.82;
+      src.connect(analyser);
+      analyser.connect(ctx.destination);
+      audioGraphRef.current = { ctx, src, analyser };
+      window.__graph = audioGraphRef.current; // debugging hook
+      if (refs.current.playing) ctx.resume().catch(() => {});
+      return analyser;
+    } catch {
+      // never let a failed graph mute playback
+      try { audioGraphRef.current?.src?.connect(ctx.destination); } catch { /* no-op */ }
+      audioGraphRef.current = { analyser: null };
+      return null;
+    }
+  }, []);
+
   // remove deleted tracks from the queue
   const purge = useCallback(ids => {
     const set = new Set(ids);
@@ -261,8 +336,16 @@ export function PlayerProvider({ children }) {
       }
     };
     const onDur = () => { setDuration(a.duration || 0); syncMediaPos(); };
-    const onPlay = () => setPlaying(true);
-    const onPause = () => { setPlaying(false); savePos(); };
+    const onPlay = () => {
+      setPlaying(true);
+      audioGraphRef.current?.ctx?.resume?.().catch(() => {});
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    };
+    const onPause = () => {
+      setPlaying(false);
+      savePos();
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    };
     const onEnded = () => {
       if (refs.current.repeat === 'one') {
         a.currentTime = 0;
@@ -336,7 +419,13 @@ export function PlayerProvider({ children }) {
         title: currentTrack.title,
         artist: currentTrack.artist,
         album: currentTrack.album,
-        artwork: art ? [{ src: art, sizes: '512x512' }] : []
+        artwork: art
+          ? [
+              { src: art, sizes: '96x96' },
+              { src: art, sizes: '192x192' },
+              { src: art, sizes: '512x512' }
+            ]
+          : []
       });
     }
   }, [currentTrack, coverUrls]);
@@ -362,8 +451,9 @@ export function PlayerProvider({ children }) {
   const value = {
     currentTrack, queue, queueTracks, index, playing, position, duration,
     volume, shuffle, repeat,
-    playTracks, playShuffled, playNext, addToQueue, jumpTo, toggle, next, prev, seek,
-    setVolume, toggleShuffle, cycleRepeat, purge
+    playTracks, playShuffled, playNext, addToQueue, jumpTo, moveInQueue, removeFromQueue,
+    toggle, next, prev, seek,
+    setVolume, toggleShuffle, cycleRepeat, purge, getAnalyser
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

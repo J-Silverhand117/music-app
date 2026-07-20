@@ -26,7 +26,9 @@ export const Repeat = ({ one }) => (
 export const Dots = () => <Svg><circle cx="12" cy="5.5" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="18.5" r="1.7" fill="currentColor"/></Svg>;
 export const Plus = () => <Svg {...S}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Svg>;
 export const ChevronDown = () => <Svg {...S}><polyline points="6 9 12 15 18 9"/></Svg>;
+export const ChevronUp = () => <Svg {...S}><polyline points="6 15 12 9 18 15"/></Svg>;
 export const ChevronLeft = () => <Svg {...S}><polyline points="15 6 9 12 15 18"/></Svg>;
+export const X = () => <Svg {...S}><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></Svg>;
 export const Import = () => <Svg {...S}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></Svg>;
 export const Volume = () => <Svg {...S}><path d="M11 5 6 9H2v6h4l5 4V5z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/></Svg>;
 export const QueueIcon = () => <Svg {...S}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/><circle cx="18" cy="17.5" r="2.4"/><path d="M20.4 17.5V11"/></Svg>;

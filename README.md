@@ -60,11 +60,17 @@ works from a sub-path too.
 - FLAC decoding in the browser is **bit-exact lossless** — the decoded PCM is
   identical to the source file, including 24-bit / hi-res material. The Now
   Playing screen shows each track's real bit depth and sample rate.
-- The app performs **zero audio processing**: no EQ, no normalization, no
-  ReplayGain, no Web Audio graph — just the native `<audio>` element. That
-  means system-level EQ (e.g. Nothing OS's built-in EQ / Nothing X profiles)
-  applies exactly as it would to any other music app, with no double-EQ or
-  conflict.
+- The app performs **no audio processing**: no EQ, no normalization, no
+  ReplayGain, no effects. The only Web Audio node is a passive `AnalyserNode`
+  tap that feeds the dot-matrix visualizer — it reads the signal without
+  modifying it. System-level EQ (e.g. Nothing OS's built-in EQ / Nothing X
+  profiles) applies exactly as it would to any other music app, with no
+  double-EQ or conflict.
+- Lock-screen / notification-shade / OS media-overlay controls work via the
+  Media Session API: play/pause/next/prev plus artwork show up in the phone's
+  notification shade and in the desktop OS media controls while the app is
+  open (foreground or background). Like all web apps, controls disappear if
+  the app is fully closed.
 - USB-C DAC dongles (e.g. CX31993/MAX97220-based) work automatically: the OS
   routes all app audio to the DAC when plugged in. For maximum fidelity keep
   the in-app volume at 100% and control loudness from the DAC/system volume,
