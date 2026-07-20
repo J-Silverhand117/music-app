@@ -1134,6 +1134,16 @@ input[type="range"]::-moz-range-thumb {
 .vpage-title { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; }
 .vpage-sub { color: var(--dim); font-size: 10.5px; letter-spacing: 0.16em; flex-shrink: 0; }
 
+.buildtag {
+  margin-top: 44px;
+  padding: 16px 0 4px;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: rgba(255, 255, 255, 0.18);
+  user-select: all;
+}
+
 /* ── empty states ─────────────────────────────────────────────────────── */
 .empty {
   min-height: 60vh;

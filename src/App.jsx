@@ -24,6 +24,8 @@ const TABS = [
 const IMPORT_ACCEPT =
   '.flac,.mp3,.m4a,.aac,.ogg,.opus,.wav,.mp4,.m4v,.webm,.mov,.lrc,audio/*,video/*';
 
+const BUILD = typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'DEV';
+
 function Logo() {
   return (
     <div className="logo ndot">
@@ -231,7 +233,10 @@ function Shell() {
             <Import />
           </button>
         </div>
-        <main className="main">{content}</main>
+        <main className="main">
+          {content}
+          {ready && <div className="buildtag ndot">BUILD {BUILD}</div>}
+        </main>
       </div>
 
       <nav className="bottomnav">

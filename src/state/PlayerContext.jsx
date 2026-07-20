@@ -160,9 +160,32 @@ export function PlayerProvider({ children }) {
   const next = useCallback((fromEnded = false) => {
     const { queue: q, index: i, repeat: rp } = refs.current;
     if (!q.length) return;
-    if (i + 1 < q.length) return void jump(i + 1);
-    if (rp === 'all') return void jump(0);
-    if (fromEnded) setPlaying(false);
+    let ni = -1;
+    if (i + 1 < q.length) ni = i + 1;
+    else if (rp === 'all') ni = 0;
+    if (ni === -1) {
+      if (fromEnded) setPlaying(false);
+      return;
+    }
+    // use the preloaded blob when available — synchronous swap, no silent
+    // gap for Android to freeze the page in (notification next included)
+    const pre = preloadRef.current;
+    const a = audioRef.current;
+    if (pre && pre.id === q[ni]) {
+      preloadRef.current = null;
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      urlRef.current = pre.url;
+      a.src = pre.url;
+      a.play().catch(() => {});
+      setIndex(ni);
+      setPosition(0);
+      setDuration(0);
+      setPref('lastQueue', { ids: q, index: ni });
+      window.__lastSwap = 'preload';
+    } else {
+      window.__lastSwap = 'fallback';
+      jump(ni);
+    }
   }, [jump]);
 
   const prev = useCallback(() => {
@@ -421,36 +444,13 @@ export function PlayerProvider({ children }) {
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     };
     const onEnded = () => {
-      const { repeat, queue: q, index: i } = refs.current;
-      if (repeat === 'one') {
+      if (refs.current.repeat === 'one') {
         a.currentTime = 0;
         a.play().catch(() => {});
         return;
       }
-      let ni = -1;
-      if (i + 1 < q.length) ni = i + 1;
-      else if (repeat === 'all' && q.length) ni = 0;
-      if (ni === -1) {
-        setPlaying(false);
-        return;
-      }
-      const pre = preloadRef.current;
-      if (pre && pre.id === q[ni]) {
-        // synchronous swap — no silent gap, page never freezes mid-queue
-        preloadRef.current = null;
-        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-        urlRef.current = pre.url;
-        a.src = pre.url;
-        a.play().catch(() => {});
-        setIndex(ni);
-        setPosition(0);
-        setDuration(0);
-        setPref('lastQueue', { ids: q, index: ni });
-        window.__lastSwap = 'preload'; // debugging hook
-      } else {
-        window.__lastSwap = 'fallback';
-        fnRef.current.next(true);
-      }
+      // next() swaps in the preloaded blob synchronously when available
+      fnRef.current.next(true);
     };
     const onHide = () => {
       if (document.visibilityState === 'hidden') savePos();
