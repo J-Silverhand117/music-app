@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLibrary } from '../state/LibraryContext';
 import { usePlayer } from '../state/PlayerContext';
 import { useMenu, useTrackMenu } from './Menu';
+import { useTrackSelection, SelectionBar } from './Selection';
 import Cover from './Cover';
 import TrackRow from './TrackRow';
 import { ChevronLeft, Plus, Dots } from './Icons';
@@ -18,9 +19,18 @@ export default function PlaylistsView({ onOpen }) {
   const pendingPicId = useRef(null); // which playlist the photo picker is for
 
   const create = async () => {
-    if (!name.trim()) return;
-    await createPlaylist(name);
-    setName('');
+    // tapping CREATE with an empty field asks for a name instead of doing nothing
+    let n = name.trim();
+    if (!n) {
+      n = (window.prompt('Playlist name') || '').trim();
+      if (!n) return;
+    }
+    try {
+      await createPlaylist(n);
+      setName('');
+    } catch (err) {
+      window.alert(`Could not create playlist: ${err.message}`);
+    }
   };
 
   const pickPhotoFor = id => {
@@ -112,6 +122,7 @@ export function PlaylistView({ id, onBack }) {
   const player = usePlayer();
   const { openMenu } = useMenu();
   const trackMenu = useTrackMenu();
+  const selection = useTrackSelection();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const picInput = useRef(null);
@@ -205,11 +216,19 @@ export function PlaylistView({ id, onBack }) {
             showArtist
             onPlay={() => player.playTracks(ids, i)}
             items={trackMenu(t, [
+              { label: 'Select…', action: () => selection.start(t.id) },
               { label: 'Remove from playlist', action: () => removeFromPlaylist(pl.id, t.id) }
             ])}
+            selectMode={selection.active}
+            selected={selection.sel?.has(t.id)}
+            onSelectToggle={() => selection.toggle(t.id)}
+            onLongPress={() => selection.start(t.id)}
           />
         ))}
       </div>
+      {selection.active && (
+        <SelectionBar sel={selection.sel} setSel={selection.setSel} allIds={ids} clear={selection.clear} />
+      )}
       <input
         ref={picInput}
         type="file"

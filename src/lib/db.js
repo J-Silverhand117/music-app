@@ -27,6 +27,18 @@ function db() {
       if (oldVersion < 5) {
         d.createObjectStore('lyrics'); // trackId -> raw .lrc text
       }
+    },
+    // an old tab/window holding the DB would block a schema upgrade forever;
+    // close our connection and reload so updates always go through
+    async blocking() {
+      try {
+        (await dbp)?.close();
+      } finally {
+        location.reload();
+      }
+    },
+    blocked() {
+      console.warn('nothing-sound: waiting for another tab to release the database');
     }
   }));
 }

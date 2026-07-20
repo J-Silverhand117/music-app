@@ -311,6 +311,8 @@ body::after {
   border-bottom: 1px solid var(--line);
   cursor: pointer;
   transition: background 0.12s;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .trackrow:hover { background: rgba(255, 255, 255, 0.035); }
 .tnum {
@@ -347,6 +349,63 @@ body::after {
 .eq i:nth-child(3) { animation-delay: 0.5s; }
 .eq:not(.on) i { animation-play-state: paused; }
 @keyframes eqbar { 0%, 100% { height: 35%; } 50% { height: 100%; } }
+
+/* ── multi-select ─────────────────────────────────────────────────────── */
+.trackrow.selected { background: rgba(215, 25, 33, 0.07); }
+.selchk {
+  display: inline-block;
+  width: 17px; height: 17px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+}
+.selchk.on { border-color: var(--red); background: var(--red); }
+.selchk.on::after {
+  content: "";
+  position: absolute;
+  left: 5px; top: 2px;
+  width: 4px; height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.selbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(120px + env(safe-area-inset-bottom));
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 6px 16px;
+  background: rgba(18, 18, 18, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  max-width: calc(100vw - 20px);
+  animation: sheetup 0.2s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+@media (min-width: 900px) { .selbar { bottom: 92px; } }
+.selcount { font-size: 10px; letter-spacing: 0.18em; color: var(--red); white-space: nowrap; margin-right: 6px; }
+.selbtn {
+  background: none;
+  border: none;
+  color: #eee;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  padding: 10px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.selbtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+.selbtn:disabled { opacity: 0.35; cursor: default; }
+.selbtn.lit { color: var(--red); }
+.selx { width: 34px; height: 34px; }
 
 /* ── artists ──────────────────────────────────────────────────────────── */
 .artist-grid { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 26px 18px; }

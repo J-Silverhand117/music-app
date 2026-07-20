@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLibrary } from '../state/LibraryContext';
 import { usePlayer } from '../state/PlayerContext';
 import { useTrackMenu } from './Menu';
+import { useTrackSelection, SelectionBar } from './Selection';
 import Cover from './Cover';
 import TrackRow from './TrackRow';
 import { ChevronLeft } from './Icons';
@@ -11,6 +12,7 @@ export default function AlbumView({ albumKey, onBack }) {
   const { albums, coverUrls } = useLibrary();
   const player = usePlayer();
   const trackMenu = useTrackMenu();
+  const selection = useTrackSelection();
   const album = albums.find(a => a.key === albumKey);
 
   useEffect(() => {
@@ -48,10 +50,17 @@ export default function AlbumView({ albumKey, onBack }) {
             track={t}
             num={t.trackNo || i + 1}
             onPlay={() => player.playTracks(ids, i)}
-            items={trackMenu(t)}
+            items={trackMenu(t, [{ label: 'Select…', action: () => selection.start(t.id) }])}
+            selectMode={selection.active}
+            selected={selection.sel?.has(t.id)}
+            onSelectToggle={() => selection.toggle(t.id)}
+            onLongPress={() => selection.start(t.id)}
           />
         ))}
       </div>
+      {selection.active && (
+        <SelectionBar sel={selection.sel} setSel={selection.setSel} allIds={ids} clear={selection.clear} />
+      )}
     </div>
   );
 }

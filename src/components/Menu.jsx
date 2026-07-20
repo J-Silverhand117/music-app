@@ -20,6 +20,20 @@ export function MenuProvider({ children }) {
     setMenu({ x: e.clientX ?? 0, y: e.clientY ?? 0, items });
   }, []);
 
+  // jump straight to the "add to playlist" page (used by multi-select)
+  const openPlaylistPicker = useCallback((e, ids) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    setNewName('');
+    setAddIds(ids);
+    setPage('playlists');
+    setMenu({
+      x: e?.clientX ?? window.innerWidth / 2,
+      y: e?.clientY ?? window.innerHeight / 2,
+      items: []
+    });
+  }, []);
+
   const close = () => setMenu(null);
 
   const pick = item => {
@@ -54,7 +68,7 @@ export function MenuProvider({ children }) {
   }
 
   return (
-    <Ctx.Provider value={{ openMenu }}>
+    <Ctx.Provider value={{ openMenu, openPlaylistPicker }}>
       {children}
       {menu && (
         <div className="menu-backdrop" onClick={close} onContextMenu={e => e.preventDefault()}>
