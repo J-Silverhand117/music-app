@@ -19,7 +19,7 @@ export default function ArtistsView({ onOpenArtist }) {
             </div>
             <div className="card-name center">{ar.name}</div>
             <div className="artist-count ndot">
-              {ar.albums.length} {ar.albums.length === 1 ? 'ALBUM' : 'ALBUMS'} · {nTracks} TRACKS
+              {ar.albums.length} {ar.albums.length === 1 ? 'RELEASE' : 'RELEASES'} · {nTracks} TRACKS
             </div>
           </div>
         );

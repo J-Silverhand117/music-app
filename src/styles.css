@@ -450,6 +450,20 @@ body::after {
 .artist-head-detail { align-items: center; }
 .artist-head-detail .dh-actions { align-items: center; }
 
+/* release sections on the artist page (Albums vs Singles & EPs) */
+.rel-sec { margin-bottom: 32px; }
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.sec-count { font-size: 10px; color: var(--red); }
+
 /* ── playlists ────────────────────────────────────────────────────────── */
 .newpl { display: flex; gap: 10px; margin: 4px 0 20px; }
 .newpl input, .newpl-inline input {

@@ -28,6 +28,14 @@ export default function ArtistView({ name, onBack, onOpenAlbum }) {
   const pic = artistPicUrls[key] || (albumWithCover ? coverUrls[albumWithCover.key] : null);
   const ids = ar.albums.flatMap(al => al.tracks.map(t => t.id));
   const total = ar.albums.reduce((s, al) => s + al.tracks.reduce((x, t) => x + t.duration, 0), 0);
+  const fullAlbums = ar.albums.filter(al => al.kind !== 'single');
+  const singles = ar.albums.filter(al => al.kind === 'single');
+  const stats = [
+    fullAlbums.length && `${fullAlbums.length} ${fullAlbums.length === 1 ? 'ALBUM' : 'ALBUMS'}`,
+    singles.length && `${singles.length} ${singles.length === 1 ? 'SINGLE/EP' : 'SINGLES & EPS'}`,
+    `${ids.length} TRACKS`,
+    fmtTotal(total)
+  ].filter(Boolean).join(' · ');
 
   const menuItems = [
     { label: 'Play next', action: () => player.playNext(ids) },
@@ -50,9 +58,7 @@ export default function ArtistView({ name, onBack, onOpenAlbum }) {
         </div>
         <div className="dh-meta">
           <h1 className="dh-title ndot">{ar.name}</h1>
-          <div className="dh-stats ndot">
-            {ar.albums.length} {ar.albums.length === 1 ? 'ALBUM' : 'ALBUMS'} · {ids.length} TRACKS · {fmtTotal(total)}
-          </div>
+          <div className="dh-stats ndot">{stats}</div>
           <div className="dh-actions">
             <button className="btn-red ndot" onClick={() => player.playTracks(ids)}>PLAY ALL</button>
             <button className="btn-ghost ndot" onClick={() => player.playShuffled(ids)}>SHUFFLE</button>
@@ -62,11 +68,30 @@ export default function ArtistView({ name, onBack, onOpenAlbum }) {
           </div>
         </div>
       </div>
-      <div className="grid grid-sm">
-        {ar.albums.map(al => (
-          <AlbumCard key={al.key} album={al} onOpen={onOpenAlbum} />
-        ))}
-      </div>
+      {fullAlbums.length > 0 && (
+        <section className="rel-sec">
+          <div className="sec-head ndot">
+            ALBUMS <span className="sec-count">{fullAlbums.length}</span>
+          </div>
+          <div className="grid grid-sm">
+            {fullAlbums.map(al => (
+              <AlbumCard key={al.key} album={al} onOpen={onOpenAlbum} />
+            ))}
+          </div>
+        </section>
+      )}
+      {singles.length > 0 && (
+        <section className="rel-sec">
+          <div className="sec-head ndot">
+            SINGLES &amp; EPS <span className="sec-count">{singles.length}</span>
+          </div>
+          <div className="grid grid-sm">
+            {singles.map(al => (
+              <AlbumCard key={al.key} album={al} onOpen={onOpenAlbum} />
+            ))}
+          </div>
+        </section>
+      )}
       <input
         ref={picInput}
         type="file"

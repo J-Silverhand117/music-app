@@ -309,7 +309,29 @@ export function LibraryProvider({ children }) {
       if (!a.year && t.year) a.year = t.year;
       a.tracks.push(t);
     }
-    return [...map.values()];
+    const list = [...map.values()];
+    // classify releases as album vs single/EP:
+    // 1. a "Singles & EPs"-style folder in the import path always wins;
+    // 2. names ending in EP/(Single) count as singles;
+    // 3. otherwise, folder-organized releases are albums, and folderless
+    //    imports fall back to the ≤3-tracks heuristic.
+    const SINGLE_SEG = /^(singles?|eps?|singles?\s*(&|and|\+)\s*eps?)$/i;
+    const SINGLE_NAME = /(\s|\()ep\)?\s*$|(\s|\()single\)?\s*$|-\s*(ep|single)\s*$/i;
+    for (const a of list) {
+      const hasFolders = a.tracks.some(t => (t.filePath || '').includes('/'));
+      const folderHit = a.tracks.some(t =>
+        (t.filePath || '').split('/').slice(1, -1).some(seg => SINGLE_SEG.test(seg.trim()))
+      );
+      const nameHit = SINGLE_NAME.test(a.album);
+      a.kind = folderHit || nameHit
+        ? 'single'
+        : hasFolders
+          ? 'album'
+          : a.tracks.length <= 3
+            ? 'single'
+            : 'album';
+    }
+    return list;
   }, [tracks]);
 
   const artists = useMemo(() => {
