@@ -4,7 +4,7 @@ import { openDB } from 'idb';
 
 let dbp;
 function db() {
-  return (dbp ??= openDB('nothing-sound', 4, {
+  return (dbp ??= openDB('nothing-sound', 5, {
     upgrade(d, oldVersion) {
       if (oldVersion < 1) {
         const tracks = d.createObjectStore('tracks', { keyPath: 'id' });
@@ -23,6 +23,9 @@ function db() {
       if (oldVersion < 4) {
         d.createObjectStore('videos', { keyPath: 'id' }); // video metadata
         d.createObjectStore('thumbs'); // videoId -> thumbnail blob
+      }
+      if (oldVersion < 5) {
+        d.createObjectStore('lyrics'); // trackId -> raw .lrc text
       }
     }
   }));
@@ -56,14 +59,18 @@ export async function addTrack(track, audioBlob, coverBlob) {
 
 export async function deleteTracks(ids, coverKeys = []) {
   const d = await db();
-  const tx = d.transaction(['tracks', 'audio', 'covers'], 'readwrite');
+  const tx = d.transaction(['tracks', 'audio', 'covers', 'lyrics'], 'readwrite');
   for (const id of ids) {
     tx.objectStore('tracks').delete(id);
     tx.objectStore('audio').delete(id);
+    tx.objectStore('lyrics').delete(id);
   }
   for (const key of coverKeys) tx.objectStore('covers').delete(key);
   await tx.done;
 }
+
+export const getLyrics = async trackId => (await db()).get('lyrics', trackId);
+export const putLyrics = async (trackId, text) => (await db()).put('lyrics', text, trackId);
 
 export async function getAllArtistPics() {
   const d = await db();

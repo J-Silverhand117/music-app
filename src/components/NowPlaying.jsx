@@ -1,15 +1,85 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlayer } from '../state/PlayerContext';
 import { useLibrary } from '../state/LibraryContext';
-import { getPref, setPref } from '../lib/db';
+import { getPref, setPref, getLyrics } from '../lib/db';
+import { parseLRC } from '../lib/lrc';
+import { useMenu } from './Menu';
 import Cover from './Cover';
 import Vinyl from './Vinyl';
 import Visualizer from './Visualizer';
 import { fmtTime } from '../lib/format';
 import {
   Play, Pause, Prev, Next, Shuffle, Repeat, ChevronDown,
-  Volume, QueueIcon, X, Grip
+  Volume, QueueIcon, X, Grip, Clock
 } from './Icons';
+
+// Synced .lrc lyrics: current line white, the rest gray; auto-centers the
+// active line (paused for a moment if the user scrolls); tap a line to seek.
+function LyricsPane() {
+  const p = usePlayer();
+  const [lines, setLines] = useState(null); // null = loading, [] = none
+  const listRef = useRef(null);
+  const userScrollRef = useRef(0);
+  const id = p.currentTrack?.id;
+
+  useEffect(() => {
+    let alive = true;
+    setLines(null);
+    if (!id) return;
+    getLyrics(id).then(text => {
+      if (alive) setLines(text ? parseLRC(text) : []);
+    });
+    return () => { alive = false; };
+  }, [id]);
+
+  const active = useMemo(() => {
+    if (!lines?.length) return -1;
+    let a = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].t <= p.position + 0.25) a = i;
+      else break;
+    }
+    return a;
+  }, [lines, p.position]);
+
+  useEffect(() => {
+    if (active < 0) return;
+    if (Date.now() - userScrollRef.current < 3000) return; // respect manual scrolling
+    listRef.current
+      ?.querySelector('.lyr-line.on')
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [active]);
+
+  const markScroll = () => { userScrollRef.current = Date.now(); };
+
+  if (lines === null) return <div className="lyr-pane lyr-empty ndot">…</div>;
+  if (!lines.length) {
+    return (
+      <div className="lyr-pane lyr-empty">
+        <div className="ndot">NO LYRICS</div>
+        <div className="lyr-hint">
+          Import a .lrc file named like the track (e.g. "{p.currentTrack?.fileName?.replace(/\.[^.]+$/, '')}.lrc")
+          and it links up automatically.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="lyr-pane" ref={listRef} onWheel={markScroll} onTouchMove={markScroll}>
+      <div className="lyr-pad" />
+      {lines.map((l, i) => (
+        <div
+          key={i}
+          className={'lyr-line' + (i === active ? ' on' : '')}
+          onClick={() => p.seek(l.t)}
+        >
+          {l.text}
+        </div>
+      ))}
+      <div className="lyr-pad" />
+    </div>
+  );
+}
 
 // Queue rows with hold-and-drag reordering (grip handle) and remove.
 // Used by both the desktop side panel and the mobile bottom sheet.
@@ -136,6 +206,7 @@ const desktopQuery = '(min-width: 900px)';
 export default function NowPlaying({ open, onClose }) {
   const p = usePlayer();
   const { coverUrls } = useLibrary();
+  const { openMenu } = useMenu();
   const [view, setView] = useState('flat');
   const [qOpen, setQOpen] = useState(false);       // mobile bottom sheet
   const [sideOpen, setSideOpen] = useState(true);  // desktop side panel
@@ -150,7 +221,7 @@ export default function NowPlaying({ open, onClose }) {
 
   useEffect(() => {
     getPref('npView').then(v => {
-      if (v === 'vinyl' || v === 'flat') setView(v);
+      if (v === 'vinyl' || v === 'flat' || v === 'lyrics') setView(v);
     });
     getPref('npSide').then(v => {
       if (typeof v === 'boolean') setSideOpen(v);
@@ -181,6 +252,24 @@ export default function NowPlaying({ open, onClose }) {
     } else setQOpen(true);
   };
 
+  const openSleepMenu = e => {
+    const items = [15, 30, 45, 60].map(min => ({
+      label: `${min} minutes`,
+      action: () => p.setSleep(min)
+    }));
+    items.push({
+      label: 'Custom…',
+      action: () => {
+        const v = parseInt(window.prompt('Sleep timer (minutes)', '20') || '', 10);
+        if (Number.isFinite(v) && v > 0 && v <= 24 * 60) p.setSleep(v);
+      }
+    });
+    if (p.sleepRemaining > 0) {
+      items.push({ label: 'Cancel timer', danger: true, action: () => p.setSleep(null) });
+    }
+    openMenu(e, items);
+  };
+
   return (
     <div className={'np' + (open ? ' open' : '')} aria-hidden={!open}>
       {t && (
@@ -191,22 +280,33 @@ export default function NowPlaying({ open, onClose }) {
               <div className="np-toggle">
                 <button className={view === 'flat' ? 'on' : ''} onClick={() => pickView('flat')}>FLAT</button>
                 <button className={view === 'vinyl' ? 'on' : ''} onClick={() => pickView('vinyl')}>VINYL</button>
+                <button className={view === 'lyrics' ? 'on' : ''} onClick={() => pickView('lyrics')}>LYRICS</button>
               </div>
-              <button
-                className={'iconbtn' + (isDesktop && sideOpen ? ' lit' : '')}
-                aria-label="Queue"
-                onClick={toggleQueue}
-              >
-                <QueueIcon />
-              </button>
+              <div className="np-hr">
+                {p.sleepRemaining > 0 && (
+                  <span className="sleep-count ndot">{fmtTime(p.sleepRemaining)}</span>
+                )}
+                <button
+                  className={'iconbtn' + (p.sleepRemaining > 0 ? ' lit' : '')}
+                  aria-label="Sleep timer"
+                  onClick={openSleepMenu}
+                >
+                  <Clock />
+                </button>
+                <button
+                  className={'iconbtn' + (isDesktop && sideOpen ? ' lit' : '')}
+                  aria-label="Queue"
+                  onClick={toggleQueue}
+                >
+                  <QueueIcon />
+                </button>
+              </div>
             </header>
 
             <div className="np-art">
-              {view === 'flat' ? (
-                <div className="np-flat"><Cover url={cover} title={t.album} /></div>
-              ) : (
-                <Vinyl cover={cover} playing={p.playing} title={t.album} />
-              )}
+              {view === 'flat' && <div className="np-flat"><Cover url={cover} title={t.album} /></div>}
+              {view === 'vinyl' && <Vinyl cover={cover} playing={p.playing} title={t.album} />}
+              {view === 'lyrics' && <LyricsPane />}
             </div>
 
             <div className="np-info">
@@ -255,7 +355,7 @@ export default function NowPlaying({ open, onClose }) {
             </div>
 
             <div className="np-bottom">
-              {view === 'flat' && <MiniVinyl cover={cover} playing={p.playing} title={t.album} />}
+              {view !== 'vinyl' && <MiniVinyl cover={cover} playing={p.playing} title={t.album} />}
               <div className="np-vol">
                 <Volume />
                 <input
@@ -269,7 +369,7 @@ export default function NowPlaying({ open, onClose }) {
                   aria-label="Volume"
                 />
               </div>
-              {view === 'flat' && <div className="mv-balance" aria-hidden="true" />}
+              {view !== 'vinyl' && <div className="mv-balance" aria-hidden="true" />}
             </div>
           </div>
 

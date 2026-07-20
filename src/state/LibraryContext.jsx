@@ -108,7 +108,8 @@ export function LibraryProvider({ children }) {
       e instanceof File ? { file: e, path: e.webkitRelativePath || e.name } : e
     );
     const files = entries.filter(({ file: f }) => AUDIO_RE.test(f.name) || VIDEO_RE.test(f.name));
-    if (!files.length) return { audioIds: [], videoIds: [] };
+    const lrcEntries = entries.filter(({ file: f }) => /\.lrc$/i.test(f.name));
+    if (!files.length && !lrcEntries.length) return { audioIds: [], videoIds: [] };
 
     // ask the browser to never evict our IndexedDB data
     try { await navigator.storage?.persist?.(); } catch { /* best effort */ }
@@ -158,6 +159,29 @@ export function LibraryProvider({ children }) {
         errors.push(`${path} — ${e.message}`);
       }
     }
+    // match .lrc lyric files to tracks (same path or same filename, minus extension)
+    let lyricsAdded = 0;
+    if (lrcEntries.length) {
+      const stripExt = s => String(s).replace(/\.[^.]+$/, '').toLowerCase();
+      const all = [...tracksRef.current, ...addedTracks];
+      for (const { file: f, path } of lrcEntries) {
+        const byPath = stripExt(path);
+        const byName = stripExt(f.name);
+        const track =
+          all.find(t => stripExt(t.filePath || t.fileName) === byPath) ||
+          all.find(t => stripExt(t.fileName) === byName);
+        if (track) {
+          try {
+            await db.putLyrics(track.id, await f.text());
+            lyricsAdded++;
+          } catch (e) {
+            errors.push(`${path} — ${e.message}`);
+          }
+        } else {
+          errors.push(`${path} — no matching track for lyrics`);
+        }
+      }
+    }
     if (addedTracks.length) {
       setTracks(ts => [...ts, ...addedTracks].sort(byAlbumOrder));
       setCoverUrls(u => ({ ...u, ...newCovers }));
@@ -167,8 +191,8 @@ export function LibraryProvider({ children }) {
       setThumbUrls(u => ({ ...u, ...newThumbs }));
     }
     setImporting({
-      done: files.length, total: files.length, current: '', errors, finished: true,
-      added: addedTracks.length + addedVideos.length
+      done: files.length, total: Math.max(files.length, 1), current: '', errors, finished: true,
+      added: addedTracks.length + addedVideos.length, lyrics: lyricsAdded
     });
     setTimeout(() => setImporting(cur => (cur?.finished ? null : cur)), 6000);
     return { audioIds: addedTracks.map(t => t.id), videoIds: addedVideos.map(v => v.id) };

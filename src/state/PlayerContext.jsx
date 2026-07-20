@@ -246,6 +246,38 @@ export function PlayerProvider({ children }) {
     }
   }, [jump]);
 
+  // Sleep timer: pauses playback (with a short fade) when it expires.
+  const [sleepAt, setSleepAt] = useState(null);
+  const [, setSleepTick] = useState(0);
+  useEffect(() => {
+    if (!sleepAt) return;
+    const iv = setInterval(() => {
+      setSleepTick(t => t + 1); // re-render the countdown
+      if (Date.now() < sleepAt) return;
+      clearInterval(iv);
+      setSleepAt(null);
+      const a = audioRef.current;
+      if (a.paused) return;
+      const v0 = a.volume;
+      let step = 0;
+      const fade = setInterval(() => {
+        step++;
+        a.volume = Math.max(0, v0 * (1 - step / 15));
+        if (step >= 15) {
+          clearInterval(fade);
+          a.pause();
+          a.volume = v0;
+        }
+      }, 200);
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [sleepAt]);
+  const setSleep = useCallback(minutes => {
+    setSleepAt(minutes ? Date.now() + minutes * 60000 : null);
+  }, []);
+  useEffect(() => { window.__setSleep = setSleep; }, [setSleep]); // debugging hook
+  const sleepRemaining = sleepAt ? Math.max(0, Math.round((sleepAt - Date.now()) / 1000)) : 0;
+
   // Passive analyser tap for the visualizer. This adds NO processing to the
   // audio (no gain, no EQ, no effects) — the signal passes through untouched,
   // so system-level EQ and USB DAC output behave exactly as before.
@@ -457,7 +489,8 @@ export function PlayerProvider({ children }) {
     volume, shuffle, repeat,
     playTracks, playShuffled, playNext, addToQueue, jumpTo, moveInQueue, removeFromQueue,
     toggle, next, prev, seek,
-    setVolume, toggleShuffle, cycleRepeat, purge, getAnalyser
+    setVolume, toggleShuffle, cycleRepeat, purge, getAnalyser,
+    sleepRemaining, setSleep
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

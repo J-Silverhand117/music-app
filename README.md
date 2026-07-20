@@ -12,6 +12,11 @@ no network needed after the first load.
 - On a desktop installed PWA the app registers as an OS file handler, so you
   can right-click a media file → Open with → Sound. (Android doesn't allow
   PWAs as "open with" targets.)
+- Synced lyrics: import `.lrc` files named like their track (e.g.
+  `01 - Song.flac` + `01 - Song.lrc`, together or later) — the LYRICS view in
+  the player highlights the current line white and lets you tap a line to
+  seek. Sleep timer (15/30/45/60 min or custom) lives in the player header
+  and fades out before pausing.
 - Screen-off behavior: audio keeps playing with the screen locked (with
   lock-screen controls); video always pauses on screen lock — an OS rule for
   every app of this kind.

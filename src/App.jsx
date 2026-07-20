@@ -22,7 +22,7 @@ const TABS = [
 ];
 
 const IMPORT_ACCEPT =
-  '.flac,.mp3,.m4a,.aac,.ogg,.opus,.wav,.mp4,.m4v,.webm,.mov,audio/*,video/*';
+  '.flac,.mp3,.m4a,.aac,.ogg,.opus,.wav,.mp4,.m4v,.webm,.mov,.lrc,audio/*,video/*';
 
 function Logo() {
   return (
@@ -35,13 +35,17 @@ function Logo() {
 function ImportToast() {
   const { importing } = useLibrary();
   if (!importing) return null;
-  const { done, total, current, errors, finished, added } = importing;
+  const { done, total, current, errors, finished, added, lyrics } = importing;
   const pct = total ? (done / total) * 100 : 0;
   return (
     <div className="toast">
       <div className="toast-line ndot">
         <span>{finished ? 'IMPORT DONE' : 'IMPORTING'}</span>
-        <span>{finished ? `${added ?? 0} ADDED` : `${done + 1}/${total}`}</span>
+        <span>
+          {finished
+            ? `${added ?? 0} ADDED${lyrics ? ` · ${lyrics} LYRICS` : ''}`
+            : `${done + 1}/${total}`}
+        </span>
       </div>
       {!finished && <div className="toast-file">{current}</div>}
       <div className="toast-bar"><div style={{ width: pct + '%' }} /></div>
