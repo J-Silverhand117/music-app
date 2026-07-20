@@ -37,7 +37,9 @@ export function PlayerProvider({ children }) {
   refs.current = { queue, index, playing, shuffle, repeat, trackMap };
   const originalRef = useRef([]); // pre-shuffle order
   const urlRef = useRef(null);
+  const preloadRef = useRef(null); // { id, url } — next track, ready to swap in
   const lastSaveRef = useRef(0);
+  const lastPosSyncRef = useRef(0);
   const fnRef = useRef({});
 
   const load = useCallback(async (id, { autoplay = true, startAt = 0 } = {}) => {
@@ -64,6 +66,38 @@ export function PlayerProvider({ children }) {
     if (autoplay) a.play().catch(() => {});
     return true;
   }, []);
+
+  // Pre-decode the upcoming track into an object URL so the switch at song
+  // end is synchronous. Without this, the async IndexedDB fetch leaves a
+  // silent gap in which Android freezes a backgrounded page — which is what
+  // kills both auto-advance and the media notification.
+  const preloadNext = useCallback(async () => {
+    const { queue: q, index: i, repeat } = refs.current;
+    let nextId = null;
+    if (q.length) {
+      if (i + 1 < q.length) nextId = q[i + 1];
+      else if (repeat === 'all') nextId = q[0];
+    }
+    if (preloadRef.current?.id === nextId) return;
+    if (preloadRef.current) {
+      URL.revokeObjectURL(preloadRef.current.url);
+      preloadRef.current = null;
+    }
+    if (!nextId) return;
+    try {
+      let blob = await getAudio(nextId);
+      if (!blob) return;
+      if (!blob.type) {
+        const t = refs.current.trackMap[nextId];
+        blob = new Blob([blob], { type: mimeFor(t?.fileName || '', 'audio/flac') });
+      }
+      preloadRef.current = { id: nextId, url: URL.createObjectURL(blob) };
+    } catch { /* best effort */ }
+  }, []);
+
+  useEffect(() => {
+    preloadNext();
+  }, [queue, index, repeat, preloadNext]);
 
   // jump to queue position; skips over tracks whose audio is missing
   const jump = useCallback(async (i, opts) => {
@@ -368,6 +402,10 @@ export function PlayerProvider({ children }) {
       if (Date.now() - lastSaveRef.current > 5000) {
         lastSaveRef.current = Date.now();
         savePos();
+      }
+      // keep the OS media notification's position fresh (helps Samsung keep it visible)
+      if (Date.now() - lastPosSyncRef.current > 1000) {
+        lastPosSyncRef.current = Date.now();
         syncMediaPos();
       }
     };
@@ -383,12 +421,45 @@ export function PlayerProvider({ children }) {
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     };
     const onEnded = () => {
-      if (refs.current.repeat === 'one') {
+      const { repeat, queue: q, index: i } = refs.current;
+      if (repeat === 'one') {
         a.currentTime = 0;
         a.play().catch(() => {});
-      } else fnRef.current.next(true);
+        return;
+      }
+      let ni = -1;
+      if (i + 1 < q.length) ni = i + 1;
+      else if (repeat === 'all' && q.length) ni = 0;
+      if (ni === -1) {
+        setPlaying(false);
+        return;
+      }
+      const pre = preloadRef.current;
+      if (pre && pre.id === q[ni]) {
+        // synchronous swap — no silent gap, page never freezes mid-queue
+        preloadRef.current = null;
+        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+        urlRef.current = pre.url;
+        a.src = pre.url;
+        a.play().catch(() => {});
+        setIndex(ni);
+        setPosition(0);
+        setDuration(0);
+        setPref('lastQueue', { ids: q, index: ni });
+        window.__lastSwap = 'preload'; // debugging hook
+      } else {
+        window.__lastSwap = 'fallback';
+        fnRef.current.next(true);
+      }
     };
-    const onHide = () => { if (document.visibilityState === 'hidden') savePos(); };
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') savePos();
+      else if ('mediaSession' in navigator) {
+        // re-assert state when coming back — some Android skins drop it
+        navigator.mediaSession.playbackState = a.paused ? 'paused' : 'playing';
+        syncMediaPos();
+      }
+    };
     a.addEventListener('timeupdate', onTime);
     a.addEventListener('durationchange', onDur);
     a.addEventListener('play', onPlay);
@@ -476,6 +547,12 @@ export function PlayerProvider({ children }) {
       ms.setActionHandler('previoustrack', () => fnRef.current.prev());
       ms.setActionHandler('nexttrack', () => fnRef.current.next());
       ms.setActionHandler('seekto', d => { if (d.seekTime != null) { a.currentTime = d.seekTime; } });
+      ms.setActionHandler('seekbackward', d => {
+        a.currentTime = Math.max(0, a.currentTime - (d.seekOffset || 10));
+      });
+      ms.setActionHandler('seekforward', d => {
+        a.currentTime = Math.min(a.duration || a.currentTime + 10, a.currentTime + (d.seekOffset || 10));
+      });
     } catch { /* some handlers unsupported */ }
   }, []);
 
