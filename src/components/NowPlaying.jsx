@@ -58,6 +58,14 @@ export default function NowPlaying({ open, onClose }) {
           <div className="np-info">
             <div className="np-title">{t.title}</div>
             <div className="np-sub">{t.artist} — {t.album}</div>
+            {(t.bps > 0 || t.sampleRate > 0) && (
+              <div className="np-quality ndot">
+                FLAC
+                {t.bps > 0 && <> · {t.bps}-BIT</>}
+                {t.sampleRate > 0 && <> / {(t.sampleRate / 1000).toString().replace(/(\.\d)\d+$/, '$1')} KHZ</>}
+                <span className="reddot"> ● </span>LOSSLESS
+              </div>
+            )}
           </div>
 
           <div className="np-seek">

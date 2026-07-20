@@ -55,6 +55,26 @@ works from a sub-path too.
   not used.
 - **Laptop (Chrome/Edge):** install icon in the address bar.
 
+## Audio quality, USB DACs & system EQ
+
+- FLAC decoding in the browser is **bit-exact lossless** — the decoded PCM is
+  identical to the source file, including 24-bit / hi-res material. The Now
+  Playing screen shows each track's real bit depth and sample rate.
+- The app performs **zero audio processing**: no EQ, no normalization, no
+  ReplayGain, no Web Audio graph — just the native `<audio>` element. That
+  means system-level EQ (e.g. Nothing OS's built-in EQ / Nothing X profiles)
+  applies exactly as it would to any other music app, with no double-EQ or
+  conflict.
+- USB-C DAC dongles (e.g. CX31993/MAX97220-based) work automatically: the OS
+  routes all app audio to the DAC when plugged in. For maximum fidelity keep
+  the in-app volume at 100% and control loudness from the DAC/system volume,
+  so no digital attenuation happens before the DAC.
+- One honest caveat: like *all* browser/PWA audio on Android, output goes
+  through the OS mixer (high-quality float). Bit-perfect *exclusive-mode* USB
+  output (bypassing the mixer entirely) is only possible for native apps like
+  UAPP — the web platform doesn't expose it. In practice the audible
+  difference is nil for 16/44.1 and minimal for hi-res.
+
 ## Notes
 
 - Regenerate the app icons with `npm run icons` (zero-dependency PNG writer in

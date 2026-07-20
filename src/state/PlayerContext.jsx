@@ -242,14 +242,25 @@ export function PlayerProvider({ children }) {
       const { queue: q, index: i } = refs.current;
       if (q[i]) setPref('lastPos', { id: q[i], t: a.currentTime || 0 });
     };
+    const syncMediaPos = () => {
+      if (!('mediaSession' in navigator) || !Number.isFinite(a.duration)) return;
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: a.duration,
+          playbackRate: a.playbackRate,
+          position: Math.min(a.currentTime, a.duration)
+        });
+      } catch { /* not supported everywhere */ }
+    };
     const onTime = () => {
       setPosition(a.currentTime);
       if (Date.now() - lastSaveRef.current > 5000) {
         lastSaveRef.current = Date.now();
         savePos();
+        syncMediaPos();
       }
     };
-    const onDur = () => setDuration(a.duration || 0);
+    const onDur = () => { setDuration(a.duration || 0); syncMediaPos(); };
     const onPlay = () => setPlaying(true);
     const onPause = () => { setPlaying(false); savePos(); };
     const onEnded = () => {
@@ -275,6 +286,18 @@ export function PlayerProvider({ children }) {
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', savePos);
     };
+  }, []);
+
+  // desktop: spacebar toggles play/pause (unless typing or focused on a control)
+  useEffect(() => {
+    const onKey = e => {
+      if (e.code !== 'Space') return;
+      if (e.target.closest?.('input, textarea, select, button, [contenteditable]')) return;
+      e.preventDefault();
+      fnRef.current.toggle();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // restore last session once the library is loaded

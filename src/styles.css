@@ -349,19 +349,47 @@ body::after {
 @keyframes eqbar { 0%, 100% { height: 35%; } 50% { height: 100%; } }
 
 /* ── artists ──────────────────────────────────────────────────────────── */
-.artist-sec { margin-bottom: 34px; }
-.artist-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 14px;
-  font-size: 15px;
-  letter-spacing: 0.16em;
-  padding-bottom: 11px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 16px;
+.artist-grid { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 26px 18px; }
+@media (max-width: 480px) { .artist-grid { grid-template-columns: repeat(2, 1fr); } }
+.artist-card { cursor: pointer; min-width: 0; text-align: center; }
+.artist-pic {
+  width: 82%;
+  margin: 0 auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: border-color 0.15s, transform 0.15s;
 }
-.artist-meta { font-size: 10px; color: var(--dim); letter-spacing: 0.2em; flex-shrink: 0; }
+.artist-pic .cover-wrap { height: 100%; }
+.artist-card:hover .artist-pic { border-color: rgba(255, 255, 255, 0.28); transform: scale(1.02); }
+.artist-card .card-name { margin-top: 11px; }
+.center { text-align: center; }
+.artist-count {
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 0.18em;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ar-pic {
+  width: 150px;
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ar-pic:hover { border-color: rgba(255, 255, 255, 0.3); }
+.ar-pic .cover-wrap { height: 100%; }
+@media (min-width: 900px) { .ar-pic { width: 208px; } }
+.artist-head-detail { align-items: center; }
+.artist-head-detail .dh-actions { align-items: center; }
 
 /* ── playlists ────────────────────────────────────────────────────────── */
 .newpl { display: flex; gap: 10px; margin: 4px 0 20px; }
@@ -578,6 +606,13 @@ body::after {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.np-quality {
+  margin-top: 8px;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: var(--dim);
+}
+.np-quality .reddot { font-size: 7px; vertical-align: 1px; }
 
 .np-seek { margin-top: 16px; }
 .np-times {

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as db from '../lib/db';
 import { parseFlac, trackFromMeta } from '../lib/flac';
+import { downscaleSquare } from '../lib/img';
 
 const Ctx = createContext(null);
 export const useLibrary = () => useContext(Ctx);
@@ -15,6 +16,7 @@ const byAlbumOrder = (a, b) =>
 export function LibraryProvider({ children }) {
   const [tracks, setTracks] = useState([]);
   const [coverUrls, setCoverUrls] = useState({});
+  const [artistPicUrls, setArtistPicUrls] = useState({});
   const [playlists, setPlaylists] = useState([]);
   const [importing, setImporting] = useState(null); // {done,total,current,errors,finished}
   const [ready, setReady] = useState(false);
@@ -23,14 +25,41 @@ export function LibraryProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const [ts, pls, covers] = await Promise.all([db.getTracks(), db.getPlaylists(), db.getAllCovers()]);
+      const [ts, pls, covers, pics] = await Promise.all([
+        db.getTracks(), db.getPlaylists(), db.getAllCovers(), db.getAllArtistPics()
+      ]);
       setTracks(ts.sort(byAlbumOrder));
       setPlaylists(pls.sort((a, b) => a.createdAt - b.createdAt));
       const urls = {};
       for (const [k, blob] of covers) if (blob) urls[k] = URL.createObjectURL(blob);
       setCoverUrls(urls);
+      const picUrls = {};
+      for (const [k, blob] of pics) if (blob) picUrls[k] = URL.createObjectURL(blob);
+      setArtistPicUrls(picUrls);
       setReady(true);
     })();
+  }, []);
+
+  const setArtistPic = useCallback(async (name, file) => {
+    const key = name.toLowerCase();
+    const blob = await downscaleSquare(file);
+    await db.putArtistPic(key, blob);
+    setArtistPicUrls(u => {
+      if (u[key]) URL.revokeObjectURL(u[key]);
+      return { ...u, [key]: URL.createObjectURL(blob) };
+    });
+  }, []);
+
+  const removeArtistPic = useCallback(async name => {
+    const key = name.toLowerCase();
+    await db.deleteArtistPic(key);
+    setArtistPicUrls(u => {
+      if (!u[key]) return u;
+      URL.revokeObjectURL(u[key]);
+      const copy = { ...u };
+      delete copy[key];
+      return copy;
+    });
   }, []);
 
   // Accepts either a flat array/FileList of File objects, or an array of
@@ -177,8 +206,8 @@ export function LibraryProvider({ children }) {
   }, [albums]);
 
   const value = {
-    ready, tracks, trackMap, albums, artists, coverUrls, playlists, importing,
-    importFiles, deleteTracks,
+    ready, tracks, trackMap, albums, artists, coverUrls, artistPicUrls, playlists, importing,
+    importFiles, deleteTracks, setArtistPic, removeArtistPic,
     createPlaylist, renamePlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

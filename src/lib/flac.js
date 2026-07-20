@@ -8,7 +8,7 @@ export async function parseFlac(file) {
   if (sig.length < 4 || sig[0] !== 0x66 || sig[1] !== 0x4c || sig[2] !== 0x61 || sig[3] !== 0x43) {
     throw new Error('not a FLAC file');
   }
-  const meta = { duration: 0, sampleRate: 0, tags: {}, picture: null };
+  const meta = { duration: 0, sampleRate: 0, bps: 0, channels: 0, tags: {}, picture: null };
   let off = 4;
   let picType = -1;
   for (let i = 0; i < 128; i++) {
@@ -42,6 +42,8 @@ export async function parseFlac(file) {
 function readStreamInfo(dv, meta) {
   const b = n => dv.getUint8(n);
   meta.sampleRate = (b(10) << 12) | (b(11) << 4) | (b(12) >> 4);
+  meta.channels = ((b(12) >> 1) & 0x07) + 1;
+  meta.bps = (((b(12) & 1) << 4) | (b(13) >> 4)) + 1; // bits per sample (16/24/32)
   const totalSamples = (b(13) & 0x0f) * 4294967296 + dv.getUint32(14);
   if (meta.sampleRate > 0) meta.duration = totalSamples / meta.sampleRate;
 }
@@ -119,6 +121,8 @@ export function trackFromMeta(file, meta, relPath = '') {
     genre: t.GENRE || '',
     duration: meta.duration,
     sampleRate: meta.sampleRate,
+    bps: meta.bps || 0,
+    channels: meta.channels || 0,
     fileName: file.name,
     filePath: relPath || file.name,
     size: file.size,

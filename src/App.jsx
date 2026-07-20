@@ -6,6 +6,7 @@ import { fromFileList, fromDataTransferItems } from './lib/scan';
 import AlbumGrid from './components/AlbumGrid';
 import AlbumView from './components/AlbumView';
 import ArtistsView from './components/ArtistsView';
+import ArtistView from './components/ArtistView';
 import PlaylistsView, { PlaylistView } from './components/PlaylistsView';
 import MiniPlayer from './components/MiniPlayer';
 import NowPlaying from './components/NowPlaying';
@@ -71,28 +72,29 @@ function Shell() {
   const { importFiles, ready, tracks, albums } = useLibrary();
   const { openMenu } = useMenu();
   const [tab, setTab] = useState('albums');
-  const [detail, setDetail] = useState(null); // {type:'album',key} | {type:'playlist',id}
+  // navigation stack of detail pages, e.g. [{type:'artist',name}, {type:'album',key}]
+  // so back from an album opened inside an artist returns to that artist
+  const [stack, setStack] = useState([]);
   const [npOpen, setNpOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef(null);
   const folderInput = useRef(null);
   const uiRef = useRef({});
-  uiRef.current = { detail, npOpen };
+  uiRef.current = { stack, npOpen };
 
   // Android/desktop back button closes overlays instead of leaving the app
   useEffect(() => {
     const onPop = () => {
-      const { detail, npOpen } = uiRef.current;
+      const { stack, npOpen } = uiRef.current;
       if (npOpen) setNpOpen(false);
-      else if (detail) setDetail(null);
+      else if (stack.length) setStack(s => s.slice(0, -1));
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
   const openDetail = d => {
-    if (uiRef.current.detail) history.replaceState({ ov: 1 }, '');
-    else history.pushState({ ov: 1 }, '');
-    setDetail(d);
+    history.pushState({ ov: 1 }, '');
+    setStack(s => [...s, d]);
   };
   const openNp = () => {
     if (!uiRef.current.npOpen) history.pushState({ np: 1 }, '');
@@ -145,20 +147,24 @@ function Shell() {
     ]);
   const pickTab = t => {
     setTab(t);
-    if (uiRef.current.detail) setDetail(null);
+    if (uiRef.current.stack.length) setStack([]);
   };
 
+  const top = stack[stack.length - 1];
+  const openAlbum = k => openDetail({ type: 'album', key: k });
   let content = null;
   if (!ready) content = null;
-  else if (detail?.type === 'album') content = <AlbumView albumKey={detail.key} onBack={closeTop} />;
-  else if (detail?.type === 'playlist') content = <PlaylistView id={detail.id} onBack={closeTop} />;
+  else if (top?.type === 'album') content = <AlbumView albumKey={top.key} onBack={closeTop} />;
+  else if (top?.type === 'playlist') content = <PlaylistView id={top.id} onBack={closeTop} />;
+  else if (top?.type === 'artist')
+    content = <ArtistView name={top.name} onBack={closeTop} onOpenAlbum={openAlbum} />;
   else if (tab === 'albums')
     content = tracks.length
-      ? <AlbumGrid albums={albums} onOpen={k => openDetail({ type: 'album', key: k })} />
+      ? <AlbumGrid albums={albums} onOpen={openAlbum} />
       : <EmptyLibrary onImportFiles={triggerImportFiles} onImportFolder={triggerImportFolder} />;
   else if (tab === 'artists')
     content = tracks.length
-      ? <ArtistsView onOpenAlbum={k => openDetail({ type: 'album', key: k })} />
+      ? <ArtistsView onOpenArtist={name => openDetail({ type: 'artist', name })} />
       : <EmptyLibrary onImportFiles={triggerImportFiles} onImportFolder={triggerImportFolder} />;
   else content = <PlaylistsView onOpen={id => openDetail({ type: 'playlist', id })} />;
 
@@ -169,10 +175,10 @@ function Shell() {
         {TABS.map(([id, label]) => (
           <button
             key={id}
-            className={'side-tab ndot' + (tab === id && !detail ? ' on' : '')}
+            className={'side-tab ndot' + (tab === id && !stack.length ? ' on' : '')}
             onClick={() => pickTab(id)}
           >
-            {tab === id && !detail ? <span className="reddot">● </span> : ''}{label}
+            {tab === id && !stack.length ? <span className="reddot">● </span> : ''}{label}
           </button>
         ))}
         <button className="import-btn ndot" onClick={openImportMenu}>
@@ -194,7 +200,7 @@ function Shell() {
         {TABS.map(([id, label]) => (
           <button
             key={id}
-            className={'bn-tab ndot' + (tab === id && !detail ? ' on' : '')}
+            className={'bn-tab ndot' + (tab === id && !stack.length ? ' on' : '')}
             onClick={() => pickTab(id)}
           >
             {label}
