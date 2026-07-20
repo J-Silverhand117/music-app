@@ -8,15 +8,21 @@ import AlbumView from './components/AlbumView';
 import ArtistsView from './components/ArtistsView';
 import ArtistView from './components/ArtistView';
 import PlaylistsView, { PlaylistView } from './components/PlaylistsView';
+import VideosView, { VideoPage } from './components/VideosView';
 import MiniPlayer from './components/MiniPlayer';
 import NowPlaying from './components/NowPlaying';
+import { usePlayer } from './state/PlayerContext';
 import { Import } from './components/Icons';
 
 const TABS = [
   ['albums', 'ALBUMS'],
   ['artists', 'ARTISTS'],
-  ['playlists', 'PLAYLISTS']
+  ['playlists', 'PLAYLISTS'],
+  ['videos', 'VIDEOS']
 ];
+
+const IMPORT_ACCEPT =
+  '.flac,.mp3,.m4a,.aac,.ogg,.opus,.wav,.mp4,.m4v,.webm,.mov,audio/*,video/*';
 
 function Logo() {
   return (
@@ -54,7 +60,8 @@ function EmptyLibrary({ onImportFiles, onImportFolder }) {
     <div className="empty">
       <div className="empty-title ndot">EMPTY<span className="reddot">.</span></div>
       <div className="empty-sub">
-        Import your FLAC files once — they're stored inside the app (IndexedDB) and play fully offline from then on.
+        Import your music once (FLAC, MP3, M4A, OGG, WAV…) — it's stored inside the app (IndexedDB)
+        and plays fully offline from then on.
       </div>
       <div className="empty-actions">
         <button className="btn-red ndot" onClick={onImportFiles}><Import /> IMPORT FILES</button>
@@ -70,6 +77,7 @@ function EmptyLibrary({ onImportFiles, onImportFolder }) {
 
 function Shell() {
   const { importFiles, ready, tracks, albums } = useLibrary();
+  const player = usePlayer();
   const { openMenu } = useMenu();
   const [tab, setTab] = useState('albums');
   // navigation stack of detail pages, e.g. [{type:'artist',name}, {type:'album',key}]
@@ -138,6 +146,28 @@ function Shell() {
     return () => { delete window.__importFiles; };
   }, [importFiles]);
 
+  // OS "open with" (installed desktop PWA, File Handling API): import the
+  // launched files, then start playing / open the first one
+  useEffect(() => {
+    if (!ready) return;
+    const handle = async files => {
+      const res = await importFiles(files);
+      if (res?.audioIds?.length) player.playTracks(res.audioIds);
+      else if (res?.videoIds?.length) {
+        setTab('videos');
+        history.pushState({ ov: 1 }, '');
+        setStack([{ type: 'video', id: res.videoIds[0] }]);
+      }
+    };
+    window.__launchImport = handle;
+    if (window.__pendingLaunch?.length) {
+      const pending = window.__pendingLaunch;
+      window.__pendingLaunch = null;
+      handle(pending);
+    }
+    return () => { delete window.__launchImport; };
+  }, [ready, importFiles, player]);
+
   const triggerImportFiles = () => fileInput.current?.click();
   const triggerImportFolder = () => folderInput.current?.click();
   const openImportMenu = e =>
@@ -158,6 +188,10 @@ function Shell() {
   else if (top?.type === 'playlist') content = <PlaylistView id={top.id} onBack={closeTop} />;
   else if (top?.type === 'artist')
     content = <ArtistView name={top.name} onBack={closeTop} onOpenAlbum={openAlbum} />;
+  else if (top?.type === 'video')
+    content = <VideoPage id={top.id} onBack={closeTop} />;
+  else if (tab === 'videos')
+    content = <VideosView onOpen={id => openDetail({ type: 'video', id })} />;
   else if (tab === 'albums')
     content = tracks.length
       ? <AlbumGrid albums={albums} onOpen={openAlbum} />
@@ -213,7 +247,7 @@ function Shell() {
 
       {dragging && (
         <div className="dropzone">
-          <div className="ndot">DROP FLAC FILES OR FOLDERS</div>
+          <div className="ndot">DROP MUSIC / VIDEO FILES OR FOLDERS</div>
         </div>
       )}
       <ImportToast />
@@ -222,7 +256,7 @@ function Shell() {
         ref={fileInput}
         type="file"
         multiple
-        accept=".flac,audio/flac,audio/x-flac"
+        accept={IMPORT_ACCEPT}
         style={{ display: 'none' }}
         onChange={e => {
           if (e.target.files?.length) importFiles(fromFileList(e.target.files));

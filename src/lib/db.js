@@ -4,7 +4,7 @@ import { openDB } from 'idb';
 
 let dbp;
 function db() {
-  return (dbp ??= openDB('nothing-sound', 3, {
+  return (dbp ??= openDB('nothing-sound', 4, {
     upgrade(d, oldVersion) {
       if (oldVersion < 1) {
         const tracks = d.createObjectStore('tracks', { keyPath: 'id' });
@@ -19,6 +19,10 @@ function db() {
       }
       if (oldVersion < 3) {
         d.createObjectStore('playlistPics'); // playlistId -> image blob
+      }
+      if (oldVersion < 4) {
+        d.createObjectStore('videos', { keyPath: 'id' }); // video metadata
+        d.createObjectStore('thumbs'); // videoId -> thumbnail blob
       }
     }
   }));
@@ -76,6 +80,31 @@ export async function getAllPlaylistPics() {
 }
 export const putPlaylistPic = async (id, blob) => (await db()).put('playlistPics', blob, id);
 export const deletePlaylistPic = async id => (await db()).delete('playlistPics', id);
+
+export const getVideos = async () => (await db()).getAll('videos');
+export async function addVideo(video, blob, thumb) {
+  const d = await db();
+  const tx = d.transaction(['videos', 'audio', 'thumbs'], 'readwrite');
+  tx.objectStore('videos').put(video);
+  tx.objectStore('audio').put(blob, video.id);
+  if (thumb) tx.objectStore('thumbs').put(thumb, video.id);
+  await tx.done;
+}
+export async function deleteVideos(ids) {
+  const d = await db();
+  const tx = d.transaction(['videos', 'audio', 'thumbs'], 'readwrite');
+  for (const id of ids) {
+    tx.objectStore('videos').delete(id);
+    tx.objectStore('audio').delete(id);
+    tx.objectStore('thumbs').delete(id);
+  }
+  await tx.done;
+}
+export async function getAllThumbs() {
+  const d = await db();
+  const [keys, vals] = await Promise.all([d.getAllKeys('thumbs'), d.getAll('thumbs')]);
+  return keys.map((k, i) => [k, vals[i]]);
+}
 
 export const getPlaylists = async () => (await db()).getAll('playlists');
 export const putPlaylist = async pl => (await db()).put('playlists', pl);

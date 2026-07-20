@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getAudio, getPref, setPref } from '../lib/db';
+import { mimeFor } from '../lib/media';
 import { useLibrary } from './LibraryContext';
 
 const Ctx = createContext(null);
@@ -43,7 +44,10 @@ export function PlayerProvider({ children }) {
     let blob;
     try { blob = await getAudio(id); } catch { blob = null; }
     if (!blob) return false;
-    if (!blob.type) blob = new Blob([blob], { type: 'audio/flac' });
+    if (!blob.type) {
+      const t = refs.current.trackMap[id];
+      blob = new Blob([blob], { type: mimeFor(t?.fileName || '', 'audio/flac') });
+    }
     const a = audioRef.current;
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = URL.createObjectURL(blob);

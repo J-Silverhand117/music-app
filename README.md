@@ -1,8 +1,20 @@
-# SOUND. — offline FLAC player (PWA)
+# SOUND. — offline music & video player (PWA)
 
-A fully offline, installable Progressive Web App for playing a personal FLAC
-library, styled after the Nothing OS design language. 100% client-side — no
-backend, no network needed after the first load.
+A fully offline, installable Progressive Web App for a personal media library,
+styled after the Nothing OS design language. 100% client-side — no backend,
+no network needed after the first load.
+
+**Supported formats**
+- Audio: FLAC (full metadata + cover art), MP3 (ID3v2 tags + cover art),
+  M4A/AAC (iTunes tags + cover art), OGG/Opus, WAV (filename/folder naming)
+- Video: MP4/M4V, WebM, MOV — own Videos tab, thumbnails generated at import,
+  plays offline like everything else. (MKV is not supported by browser codecs.)
+- On a desktop installed PWA the app registers as an OS file handler, so you
+  can right-click a media file → Open with → Sound. (Android doesn't allow
+  PWAs as "open with" targets.)
+- Screen-off behavior: audio keeps playing with the screen locked (with
+  lock-screen controls); video always pauses on screen lock — an OS rule for
+  every app of this kind.
 
 ## How offline works
 

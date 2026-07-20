@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as db from '../lib/db';
 import { parseFlac, trackFromMeta } from '../lib/flac';
+import { parseMediaTags } from '../lib/tags';
+import { AUDIO_RE, VIDEO_RE, probeDuration, probeVideo } from '../lib/media';
 import { downscaleSquare } from '../lib/img';
 
 const Ctx = createContext(null);
@@ -15,7 +17,9 @@ const byAlbumOrder = (a, b) =>
 
 export function LibraryProvider({ children }) {
   const [tracks, setTracks] = useState([]);
+  const [videos, setVideos] = useState([]);
   const [coverUrls, setCoverUrls] = useState({});
+  const [thumbUrls, setThumbUrls] = useState({});
   const [artistPicUrls, setArtistPicUrls] = useState({});
   const [playlistPicUrls, setPlaylistPicUrls] = useState({});
   const [playlists, setPlaylists] = useState([]);
@@ -23,13 +27,20 @@ export function LibraryProvider({ children }) {
   const [ready, setReady] = useState(false);
   const tracksRef = useRef(tracks);
   tracksRef.current = tracks;
+  const videosRef = useRef(videos);
+  videosRef.current = videos;
 
   useEffect(() => {
     (async () => {
-      const [ts, pls, covers, pics, plPics] = await Promise.all([
-        db.getTracks(), db.getPlaylists(), db.getAllCovers(), db.getAllArtistPics(), db.getAllPlaylistPics()
+      const [ts, vids, pls, covers, pics, plPics, thumbs] = await Promise.all([
+        db.getTracks(), db.getVideos(), db.getPlaylists(), db.getAllCovers(),
+        db.getAllArtistPics(), db.getAllPlaylistPics(), db.getAllThumbs()
       ]);
       setTracks(ts.sort(byAlbumOrder));
+      setVideos(vids.sort((a, b) => a.title.localeCompare(b.title)));
+      const tUrls = {};
+      for (const [k, blob] of thumbs) if (blob) tUrls[k] = URL.createObjectURL(blob);
+      setThumbUrls(tUrls);
       setPlaylists(pls.sort((a, b) => a.createdAt - b.createdAt));
       const urls = {};
       for (const [k, blob] of covers) if (blob) urls[k] = URL.createObjectURL(blob);
@@ -88,47 +99,93 @@ export function LibraryProvider({ children }) {
 
   // Accepts either a flat array/FileList of File objects, or an array of
   // { file, path } entries (see lib/scan.js) produced by a folder picker or
-  // a recursive drag-and-drop of directories. Non-FLAC files inside a
-  // scanned folder (cover.jpg, .cue, .log, etc.) are skipped silently —
-  // only genuine parse failures and duplicates are reported.
+  // a recursive drag-and-drop of directories. Audio goes to the music library,
+  // video files to the Videos tab; anything else inside a scanned folder
+  // (cover.jpg, .cue, .log, etc.) is skipped silently. Returns the ids of
+  // what was added so callers (e.g. OS "open with") can start playback.
   const importFiles = useCallback(async rawList => {
     const entries = [...rawList].map(e =>
       e instanceof File ? { file: e, path: e.webkitRelativePath || e.name } : e
     );
-    const files = entries.filter(
-      ({ file: f }) => /\.flac$/i.test(f.name) || f.type === 'audio/flac' || f.type === 'audio/x-flac'
-    );
-    if (!files.length) return;
+    const files = entries.filter(({ file: f }) => AUDIO_RE.test(f.name) || VIDEO_RE.test(f.name));
+    if (!files.length) return { audioIds: [], videoIds: [] };
 
     // ask the browser to never evict our IndexedDB data
     try { await navigator.storage?.persist?.(); } catch { /* best effort */ }
 
     const errors = [];
-    const existing = new Set(tracksRef.current.map(t => `${t.filePath || t.fileName}|${t.size}`));
-    const added = [];
+    const existing = new Set([
+      ...tracksRef.current.map(t => `${t.filePath || t.fileName}|${t.size}`),
+      ...videosRef.current.map(v => `${v.filePath || v.fileName}|${v.size}`)
+    ]);
+    const addedTracks = [];
+    const addedVideos = [];
     const newCovers = {};
+    const newThumbs = {};
     for (let i = 0; i < files.length; i++) {
       const { file: f, path } = files[i];
       setImporting({ done: i, total: files.length, current: f.name, errors, finished: false });
       try {
         const sig = `${path}|${f.size}`;
         if (existing.has(sig)) { errors.push(`${path} — already in library`); continue; }
-        const meta = await parseFlac(f);
-        const track = trackFromMeta(f, meta, path);
-        const coverAdded = await db.addTrack(track, f, meta.picture);
-        if (coverAdded && meta.picture) newCovers[track.albumKey] = URL.createObjectURL(meta.picture);
-        existing.add(sig);
-        added.push(track);
+        if (VIDEO_RE.test(f.name)) {
+          const [tagMeta, probe] = [await parseMediaTags(f), await probeVideo(f)];
+          const video = {
+            id: crypto.randomUUID(),
+            title: tagMeta.tags.TITLE || f.name.replace(/\.[^.]+$/, ''),
+            duration: probe.duration || tagMeta.duration || 0,
+            width: probe.width,
+            height: probe.height,
+            fileName: f.name,
+            filePath: path,
+            size: f.size,
+            addedAt: Date.now()
+          };
+          await db.addVideo(video, f, probe.thumb);
+          if (probe.thumb) newThumbs[video.id] = URL.createObjectURL(probe.thumb);
+          existing.add(sig);
+          addedVideos.push(video);
+        } else {
+          const meta = /\.flac$/i.test(f.name) ? await parseFlac(f) : await parseMediaTags(f);
+          if (!meta.duration) meta.duration = await probeDuration(f);
+          const track = trackFromMeta(f, meta, path);
+          const coverAdded = await db.addTrack(track, f, meta.picture);
+          if (coverAdded && meta.picture) newCovers[track.albumKey] = URL.createObjectURL(meta.picture);
+          existing.add(sig);
+          addedTracks.push(track);
+        }
       } catch (e) {
         errors.push(`${path} — ${e.message}`);
       }
     }
-    if (added.length) {
-      setTracks(ts => [...ts, ...added].sort(byAlbumOrder));
+    if (addedTracks.length) {
+      setTracks(ts => [...ts, ...addedTracks].sort(byAlbumOrder));
       setCoverUrls(u => ({ ...u, ...newCovers }));
     }
-    setImporting({ done: files.length, total: files.length, current: '', errors, finished: true, added: added.length });
+    if (addedVideos.length) {
+      setVideos(vs => [...vs, ...addedVideos].sort((a, b) => a.title.localeCompare(b.title)));
+      setThumbUrls(u => ({ ...u, ...newThumbs }));
+    }
+    setImporting({
+      done: files.length, total: files.length, current: '', errors, finished: true,
+      added: addedTracks.length + addedVideos.length
+    });
     setTimeout(() => setImporting(cur => (cur?.finished ? null : cur)), 6000);
+    return { audioIds: addedTracks.map(t => t.id), videoIds: addedVideos.map(v => v.id) };
+  }, []);
+
+  const deleteVideos = useCallback(async ids => {
+    await db.deleteVideos(ids);
+    const set = new Set(ids);
+    setVideos(vs => vs.filter(v => !set.has(v.id)));
+    setThumbUrls(u => {
+      const copy = { ...u };
+      for (const id of ids) {
+        if (copy[id]) URL.revokeObjectURL(copy[id]);
+        delete copy[id];
+      }
+      return copy;
+    });
   }, []);
 
   const deleteTracks = useCallback(async ids => {
@@ -238,9 +295,10 @@ export function LibraryProvider({ children }) {
   }, [albums]);
 
   const value = {
-    ready, tracks, trackMap, albums, artists, coverUrls, artistPicUrls, playlistPicUrls,
-    playlists, importing,
-    importFiles, deleteTracks, setArtistPic, removeArtistPic, setPlaylistPic, removePlaylistPic,
+    ready, tracks, trackMap, albums, artists, videos, coverUrls, thumbUrls,
+    artistPicUrls, playlistPicUrls, playlists, importing,
+    importFiles, deleteTracks, deleteVideos, setArtistPic, removeArtistPic,
+    setPlaylistPic, removePlaylistPic,
     createPlaylist, renamePlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -110,7 +110,7 @@ export function trackFromMeta(file, meta, relPath = '') {
   const album = t.ALBUM || fb.album || 'Unknown Album';
   return {
     id: crypto.randomUUID(),
-    title: t.TITLE || file.name.replace(/\.flac$/i, ''),
+    title: t.TITLE || file.name.replace(/\.[^.]+$/, ''),
     artist,
     albumArtist,
     album,
