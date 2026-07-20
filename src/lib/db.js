@@ -4,7 +4,7 @@ import { openDB } from 'idb';
 
 let dbp;
 function db() {
-  return (dbp ??= openDB('nothing-sound', 2, {
+  return (dbp ??= openDB('nothing-sound', 3, {
     upgrade(d, oldVersion) {
       if (oldVersion < 1) {
         const tracks = d.createObjectStore('tracks', { keyPath: 'id' });
@@ -16,6 +16,9 @@ function db() {
       }
       if (oldVersion < 2) {
         d.createObjectStore('artistPics'); // artistName(lower) -> image blob
+      }
+      if (oldVersion < 3) {
+        d.createObjectStore('playlistPics'); // playlistId -> image blob
       }
     }
   }));
@@ -65,6 +68,14 @@ export async function getAllArtistPics() {
 }
 export const putArtistPic = async (key, blob) => (await db()).put('artistPics', blob, key);
 export const deleteArtistPic = async key => (await db()).delete('artistPics', key);
+
+export async function getAllPlaylistPics() {
+  const d = await db();
+  const [keys, vals] = await Promise.all([d.getAllKeys('playlistPics'), d.getAll('playlistPics')]);
+  return keys.map((k, i) => [k, vals[i]]);
+}
+export const putPlaylistPic = async (id, blob) => (await db()).put('playlistPics', blob, id);
+export const deletePlaylistPic = async id => (await db()).delete('playlistPics', id);
 
 export const getPlaylists = async () => (await db()).getAll('playlists');
 export const putPlaylist = async pl => (await db()).put('playlists', pl);

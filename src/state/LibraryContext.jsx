@@ -17,6 +17,7 @@ export function LibraryProvider({ children }) {
   const [tracks, setTracks] = useState([]);
   const [coverUrls, setCoverUrls] = useState({});
   const [artistPicUrls, setArtistPicUrls] = useState({});
+  const [playlistPicUrls, setPlaylistPicUrls] = useState({});
   const [playlists, setPlaylists] = useState([]);
   const [importing, setImporting] = useState(null); // {done,total,current,errors,finished}
   const [ready, setReady] = useState(false);
@@ -25,8 +26,8 @@ export function LibraryProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const [ts, pls, covers, pics] = await Promise.all([
-        db.getTracks(), db.getPlaylists(), db.getAllCovers(), db.getAllArtistPics()
+      const [ts, pls, covers, pics, plPics] = await Promise.all([
+        db.getTracks(), db.getPlaylists(), db.getAllCovers(), db.getAllArtistPics(), db.getAllPlaylistPics()
       ]);
       setTracks(ts.sort(byAlbumOrder));
       setPlaylists(pls.sort((a, b) => a.createdAt - b.createdAt));
@@ -36,6 +37,9 @@ export function LibraryProvider({ children }) {
       const picUrls = {};
       for (const [k, blob] of pics) if (blob) picUrls[k] = URL.createObjectURL(blob);
       setArtistPicUrls(picUrls);
+      const plPicUrls = {};
+      for (const [k, blob] of plPics) if (blob) plPicUrls[k] = URL.createObjectURL(blob);
+      setPlaylistPicUrls(plPicUrls);
       setReady(true);
     })();
   }, []);
@@ -58,6 +62,26 @@ export function LibraryProvider({ children }) {
       URL.revokeObjectURL(u[key]);
       const copy = { ...u };
       delete copy[key];
+      return copy;
+    });
+  }, []);
+
+  const setPlaylistPic = useCallback(async (id, file) => {
+    const blob = await downscaleSquare(file);
+    await db.putPlaylistPic(id, blob);
+    setPlaylistPicUrls(u => {
+      if (u[id]) URL.revokeObjectURL(u[id]);
+      return { ...u, [id]: URL.createObjectURL(blob) };
+    });
+  }, []);
+
+  const removePlaylistPic = useCallback(async id => {
+    await db.deletePlaylistPic(id);
+    setPlaylistPicUrls(u => {
+      if (!u[id]) return u;
+      URL.revokeObjectURL(u[id]);
+      const copy = { ...u };
+      delete copy[id];
       return copy;
     });
   }, []);
@@ -156,7 +180,15 @@ export function LibraryProvider({ children }) {
 
   const deletePlaylist = useCallback(async id => {
     await db.removePlaylist(id);
+    await db.deletePlaylistPic(id);
     setPlaylists(pls => pls.filter(pl => pl.id !== id));
+    setPlaylistPicUrls(u => {
+      if (!u[id]) return u;
+      URL.revokeObjectURL(u[id]);
+      const copy = { ...u };
+      delete copy[id];
+      return copy;
+    });
   }, []);
 
   const addToPlaylist = useCallback(async (id, ids) => {
@@ -206,8 +238,9 @@ export function LibraryProvider({ children }) {
   }, [albums]);
 
   const value = {
-    ready, tracks, trackMap, albums, artists, coverUrls, artistPicUrls, playlists, importing,
-    importFiles, deleteTracks, setArtistPic, removeArtistPic,
+    ready, tracks, trackMap, albums, artists, coverUrls, artistPicUrls, playlistPicUrls,
+    playlists, importing,
+    importFiles, deleteTracks, setArtistPic, removeArtistPic, setPlaylistPic, removePlaylistPic,
     createPlaylist, renamePlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

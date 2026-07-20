@@ -1,20 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLibrary } from '../state/LibraryContext';
 import { usePlayer } from '../state/PlayerContext';
 import { useMenu, useTrackMenu } from './Menu';
+import Cover from './Cover';
 import TrackRow from './TrackRow';
-import { ChevronLeft, Note, Plus, Dots } from './Icons';
+import { ChevronLeft, Plus, Dots } from './Icons';
 import { fmtTotal } from '../lib/format';
 
 export default function PlaylistsView({ onOpen }) {
-  const { playlists, trackMap, createPlaylist, renamePlaylist, deletePlaylist } = useLibrary();
+  const {
+    playlists, trackMap, playlistPicUrls,
+    createPlaylist, renamePlaylist, deletePlaylist, setPlaylistPic, removePlaylistPic
+  } = useLibrary();
   const { openMenu } = useMenu();
   const [name, setName] = useState('');
+  const picInput = useRef(null);
+  const pendingPicId = useRef(null); // which playlist the photo picker is for
 
   const create = async () => {
     if (!name.trim()) return;
     await createPlaylist(name);
     setName('');
+  };
+
+  const pickPhotoFor = id => {
+    pendingPicId.current = id;
+    picInput.current?.click();
   };
 
   return (
@@ -36,6 +47,7 @@ export default function PlaylistsView({ onOpen }) {
       )}
       {playlists.map(pl => {
         const total = pl.trackIds.reduce((s, id) => s + (trackMap[id]?.duration || 0), 0);
+        const hasPic = !!playlistPicUrls[pl.id];
         const items = [
           {
             label: 'Rename',
@@ -44,6 +56,8 @@ export default function PlaylistsView({ onOpen }) {
               if (n?.trim()) renamePlaylist(pl.id, n);
             }
           },
+          { label: hasPic ? 'Change photo' : 'Set photo', action: () => pickPhotoFor(pl.id) },
+          ...(hasPic ? [{ label: 'Remove photo', action: () => removePlaylistPic(pl.id) }] : []),
           {
             label: 'Delete playlist',
             danger: true,
@@ -54,7 +68,9 @@ export default function PlaylistsView({ onOpen }) {
         ];
         return (
           <div key={pl.id} className="plrow" onClick={() => onOpen(pl.id)} onContextMenu={e => openMenu(e, items)}>
-            <div className="pl-icon"><Note /></div>
+            <div className="pl-icon">
+              <Cover url={playlistPicUrls[pl.id]} title={'playlist:' + pl.name} />
+            </div>
             <div className="pl-name">{pl.name}</div>
             <div className="pl-count ndot">
               {pl.trackIds.length} TRACKS{pl.trackIds.length ? ` · ${fmtTotal(total)}` : ''}
@@ -72,30 +88,61 @@ export default function PlaylistsView({ onOpen }) {
           </div>
         );
       })}
+      <input
+        ref={picInput}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={e => {
+          if (e.target.files?.[0] && pendingPicId.current) {
+            setPlaylistPic(pendingPicId.current, e.target.files[0]);
+          }
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }
 
 export function PlaylistView({ id, onBack }) {
-  const { playlists, trackMap, renamePlaylist, removeFromPlaylist } = useLibrary();
+  const {
+    playlists, trackMap, playlistPicUrls,
+    renamePlaylist, removeFromPlaylist, setPlaylistPic, removePlaylistPic
+  } = useLibrary();
   const player = usePlayer();
+  const { openMenu } = useMenu();
   const trackMenu = useTrackMenu();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
+  const picInput = useRef(null);
 
   const pl = playlists.find(p => p.id === id);
   useEffect(() => {
     if (!pl) onBack();
   }, [pl, onBack]);
   if (!pl) return null;
+
   const tracks = pl.trackIds.map(tid => trackMap[tid]).filter(Boolean);
   const ids = tracks.map(t => t.id);
   const total = tracks.reduce((s, t) => s + t.duration, 0);
+  const hasPic = !!playlistPicUrls[pl.id];
 
   const commitName = () => {
     if (name.trim()) renamePlaylist(pl.id, name);
     setEditing(false);
   };
+
+  const plMenu = [
+    ...(ids.length
+      ? [
+          { label: 'Play next', action: () => player.playNext(ids) },
+          { label: 'Add to queue', action: () => player.addToQueue(ids) }
+        ]
+      : []),
+    { label: 'Rename', action: () => { setName(pl.name); setEditing(true); } },
+    { label: hasPic ? 'Change photo' : 'Set photo', action: () => picInput.current?.click() },
+    ...(hasPic ? [{ label: 'Remove photo', action: () => removePlaylistPic(pl.id) }] : [])
+  ];
 
   return (
     <div>
@@ -103,7 +150,9 @@ export function PlaylistView({ id, onBack }) {
         <ChevronLeft /> BACK
       </button>
       <div className="detail-head">
-        <div className="pl-icon big"><Note /></div>
+        <div className="pl-cover" onClick={() => picInput.current?.click()} title="Tap to set photo">
+          <Cover url={playlistPicUrls[pl.id]} title={'playlist:' + pl.name} />
+        </div>
         <div className="dh-meta">
           {editing ? (
             <input
@@ -129,12 +178,17 @@ export function PlaylistView({ id, onBack }) {
           <div className="dh-stats ndot">
             {tracks.length} TRACKS{tracks.length ? ` · ${fmtTotal(total)}` : ''}
           </div>
-          {tracks.length > 0 && (
-            <div className="dh-actions">
-              <button className="btn-red ndot" onClick={() => player.playTracks(ids)}>PLAY</button>
-              <button className="btn-ghost ndot" onClick={() => player.playShuffled(ids)}>SHUFFLE</button>
-            </div>
-          )}
+          <div className="dh-actions">
+            {tracks.length > 0 && (
+              <>
+                <button className="btn-red ndot" onClick={() => player.playTracks(ids)}>PLAY</button>
+                <button className="btn-ghost ndot" onClick={() => player.playShuffled(ids)}>SHUFFLE</button>
+              </>
+            )}
+            <button className="iconbtn" aria-label="Playlist menu" onClick={e => openMenu(e, plMenu)}>
+              <Dots />
+            </button>
+          </div>
         </div>
       </div>
       {tracks.length === 0 && (
@@ -156,6 +210,16 @@ export function PlaylistView({ id, onBack }) {
           />
         ))}
       </div>
+      <input
+        ref={picInput}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={e => {
+          if (e.target.files?.[0]) setPlaylistPic(pl.id, e.target.files[0]);
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }

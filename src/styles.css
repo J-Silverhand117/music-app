@@ -422,15 +422,23 @@ body::after {
   flex-shrink: 0;
   border-radius: 10px;
   border: 1px solid var(--line);
+  overflow: hidden;
   background: var(--panel);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--dim);
 }
-.pl-icon.big { width: 150px; height: 150px; border-radius: var(--radius); }
-.pl-icon.big svg { width: 44px; height: 44px; }
-@media (min-width: 900px) { .pl-icon.big { width: 208px; height: 208px; } }
+.pl-icon .cover-wrap { height: 100%; }
+.pl-cover {
+  width: 150px;
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.pl-cover:hover { border-color: rgba(255, 255, 255, 0.3); }
+.pl-cover .cover-wrap { height: 100%; }
+@media (min-width: 900px) { .pl-cover { width: 208px; } }
 .pl-name {
   flex: 1;
   min-width: 0;
