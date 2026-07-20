@@ -165,11 +165,16 @@ export function LibraryProvider({ children }) {
       const stripExt = s => String(s).replace(/\.[^.]+$/, '').toLowerCase();
       const all = [...tracksRef.current, ...addedTracks];
       for (const { file: f, path } of lrcEntries) {
+        // matches both "Song.lrc" and "Song.flac.lrc" naming, path first then bare filename
         const byPath = stripExt(path);
         const byName = stripExt(f.name);
+        const pathNoLrc = path.replace(/\.lrc$/i, '').toLowerCase();
+        const nameNoLrc = f.name.replace(/\.lrc$/i, '').toLowerCase();
         const track =
           all.find(t => stripExt(t.filePath || t.fileName) === byPath) ||
-          all.find(t => stripExt(t.fileName) === byName);
+          all.find(t => (t.filePath || t.fileName).toLowerCase() === pathNoLrc) ||
+          all.find(t => stripExt(t.fileName) === byName) ||
+          all.find(t => t.fileName.toLowerCase() === nameNoLrc);
         if (track) {
           try {
             await db.putLyrics(track.id, await f.text());
